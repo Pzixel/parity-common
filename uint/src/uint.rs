@@ -181,7 +181,7 @@ impl From<hex::FromHexError> for FromHexError {
 #[doc(hidden)]
 macro_rules! impl_map_from {
 	($thing:ident, $from:ty, $to:ty) => {
-		impl From<$from> for $thing {
+		impl const From<$from> for $thing {
 			fn from(value: $from) -> $thing {
 				From::from(value as $to)
 			}
@@ -247,14 +247,22 @@ macro_rules! uint_overflowing_binop {
 	}};
 }
 
+pub const fn check_non_zero(a: u64, b: u64) -> bool {
+	a != 0 || b != 0
+}
+
+pub const fn check_id_true(_: u64, _: u64) -> bool {
+	true
+}
+
 #[macro_export]
 #[doc(hidden)]
 macro_rules! uint_full_mul_reg {
 	($name:ident, 8, $self_expr:expr, $other:expr) => {
-		$crate::uint_full_mul_reg!($name, 8, $self_expr, $other, |a, b| a != 0 || b != 0);
+		$crate::uint_full_mul_reg!($name, 8, $self_expr, $other, $crate::check_non_zero);
 	};
 	($name:ident, $n_words:tt, $self_expr:expr, $other:expr) => {
-		$crate::uint_full_mul_reg!($name, $n_words, $self_expr, $other, |_, _| true);
+		$crate::uint_full_mul_reg!($name, $n_words, $self_expr, $other, $crate::check_id_true);
 	};
 	($name:ident, $n_words:tt, $self_expr:expr, $other:expr, $check:expr) => {{
 		{
@@ -315,7 +323,7 @@ macro_rules! uint_overflowing_mul {
 
 		// The compiler WILL NOT inline this if you remove this annotation.
 		#[inline(always)]
-		fn any_nonzero(arr: &[u64; $n_words]) -> bool {
+		const fn any_nonzero(arr: &[u64; $n_words]) -> bool {
 			use $crate::unroll;
 			unroll! {
 				for i in 0..$n_words {
@@ -360,7 +368,7 @@ macro_rules! panic_on_overflow {
 #[doc(hidden)]
 macro_rules! impl_mul_from {
 	($name: ty, $other: ident) => {
-		impl $crate::core_::ops::Mul<$other> for $name {
+		impl const $crate::core_::ops::Mul<$other> for $name {
 			type Output = $name;
 
 			fn mul(self, other: $other) -> $name {
@@ -475,7 +483,7 @@ macro_rules! construct_uint {
 	( $(#[$attr:meta])* $visibility:vis struct $name:ident ( $n_words:tt ); ) => {
 			$crate::construct_uint! { @construct $(#[$attr])* $visibility struct $name ($n_words); }
 
-			impl $crate::core_::convert::From<u128> for $name {
+			impl const $crate::core_::convert::From<u128> for $name {
 				fn from(value: u128) -> $name {
 					let mut ret = [0; $n_words];
 					ret[0] = value as u64;
@@ -484,7 +492,7 @@ macro_rules! construct_uint {
 				}
 			}
 
-			impl $crate::core_::convert::From<i128> for $name {
+			impl const $crate::core_::convert::From<i128> for $name {
 				fn from(value: i128) -> $name {
 					match value >= 0 {
 						true => From::from(value as u128),
@@ -655,7 +663,7 @@ macro_rules! construct_uint {
 			///
 			/// Panics if the number is larger than usize::max_value().
 			#[inline]
-			pub fn as_usize(&self) -> usize {
+			pub const fn as_usize(&self) -> usize {
 				let &$name(ref arr) = self;
 				if !self.fits_word() || arr[0] > usize::max_value() as u64 {
 					panic!("Integer overflow when casting to usize")
@@ -674,9 +682,10 @@ macro_rules! construct_uint {
 
 			// Whether this fits u64.
 			#[inline]
-			fn fits_word(&self) -> bool {
+			const fn fits_word(&self) -> bool {
 				let &$name(ref arr) = self;
-				for i in 1..$n_words { if arr[i] != 0 { return false; } }
+				let mut i = 1;
+				while i < $n_words { if arr[i] != 0 { return false; } else { i += 1; } }
 				return true;
 			}
 
@@ -1049,7 +1058,7 @@ macro_rules! construct_uint {
 
 			/// Addition which overflows and returns a flag if it does.
 			#[inline(always)]
-			pub fn overflowing_add(self, other: $name) -> ($name, bool) {
+			pub const fn overflowing_add(self, other: $name) -> ($name, bool) {
 				$crate::uint_overflowing_binop!(
 					$name,
 					$n_words,
@@ -1077,7 +1086,7 @@ macro_rules! construct_uint {
 
 			/// Subtraction which underflows and returns a flag if it does.
 			#[inline(always)]
-			pub fn overflowing_sub(self, other: $name) -> ($name, bool) {
+			pub const fn overflowing_sub(self, other: $name) -> ($name, bool) {
 				$crate::uint_overflowing_binop!(
 					$name,
 					$n_words,
@@ -1114,7 +1123,7 @@ macro_rules! construct_uint {
 
 			/// Multiply with overflow, returning a flag if it does.
 			#[inline(always)]
-			pub fn overflowing_mul(self, other: $name) -> ($name, bool) {
+			pub const fn overflowing_mul(self, other: $name) -> ($name, bool) {
 				$crate::uint_overflowing_mul!($name, $n_words, self, other)
 			}
 
@@ -1333,7 +1342,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl $crate::core_::convert::From<u64> for $name {
+		impl const $crate::core_::convert::From<u64> for $name {
 			fn from(value: u64) -> $name {
 				let mut ret = [0; $n_words];
 				ret[0] = value;
@@ -1346,7 +1355,7 @@ macro_rules! construct_uint {
 		$crate::impl_map_from!($name, u32, u64);
 		$crate::impl_map_from!($name, usize, u64);
 
-		impl $crate::core_::convert::From<i64> for $name {
+		impl const $crate::core_::convert::From<i64> for $name {
 			fn from(value: i64) -> $name {
 				match value >= 0 {
 					true => From::from(value as u64),
@@ -1378,7 +1387,7 @@ macro_rules! construct_uint {
 		$crate::impl_try_from_for_primitive!($name, isize);
 		$crate::impl_try_from_for_primitive!($name, i64);
 
-		impl<T> $crate::core_::ops::Add<T> for $name where T: Into<$name> {
+		impl<T> const $crate::core_::ops::Add<T> for $name where T: ~const Into<$name> {
 			type Output = $name;
 
 			fn add(self, other: T) -> $name {
@@ -1404,7 +1413,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl<T> $crate::core_::ops::Sub<T> for $name where T: Into<$name> {
+		impl<T> const $crate::core_::ops::Sub<T> for $name where T: ~const Into<$name> {
 			type Output = $name;
 
 			#[inline]
@@ -1493,7 +1502,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl $crate::core_::ops::BitAnd<$name> for $name {
+		impl const $crate::core_::ops::BitAnd<$name> for $name {
 			type Output = $name;
 
 			#[inline]
@@ -1501,8 +1510,10 @@ macro_rules! construct_uint {
 				let $name(ref arr1) = self;
 				let $name(ref arr2) = other;
 				let mut ret = [0u64; $n_words];
-				for i in 0..$n_words {
+				let mut i = 0;
+				while i < $n_words {
 					ret[i] = arr1[i] & arr2[i];
+					i += 1;
 				}
 				$name(ret)
 			}
@@ -1514,7 +1525,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl $crate::core_::ops::BitXor<$name> for $name {
+		impl const $crate::core_::ops::BitXor<$name> for $name {
 			type Output = $name;
 
 			#[inline]
@@ -1522,8 +1533,10 @@ macro_rules! construct_uint {
 				let $name(ref arr1) = self;
 				let $name(ref arr2) = other;
 				let mut ret = [0u64; $n_words];
-				for i in 0..$n_words {
+				let mut i = 0;
+				while i < $n_words {
 					ret[i] = arr1[i] ^ arr2[i];
+					i += 1;
 				}
 				$name(ret)
 			}
@@ -1535,7 +1548,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl $crate::core_::ops::BitOr<$name> for $name {
+		impl const $crate::core_::ops::BitOr<$name> for $name {
 			type Output = $name;
 
 			#[inline]
@@ -1543,8 +1556,10 @@ macro_rules! construct_uint {
 				let $name(ref arr1) = self;
 				let $name(ref arr2) = other;
 				let mut ret = [0u64; $n_words];
-				for i in 0..$n_words {
+				let mut i = 0;
+				while i < $n_words {
 					ret[i] = arr1[i] | arr2[i];
+					i += 1;
 				}
 				$name(ret)
 			}
@@ -1556,21 +1571,23 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl $crate::core_::ops::Not for $name {
+		impl const $crate::core_::ops::Not for $name {
 			type Output = $name;
 
 			#[inline]
 			fn not(self) -> $name {
 				let $name(ref arr) = self;
 				let mut ret = [0u64; $n_words];
-				for i in 0..$n_words {
+				let mut i = 0;
+				while i < $n_words {
 					ret[i] = !arr[i];
+					i += 1;
 				}
 				$name(ret)
 			}
 		}
 
-		impl<T> $crate::core_::ops::Shl<T> for $name where T: Into<$name> {
+		impl<T> const $crate::core_::ops::Shl<T> for $name where T: ~const Into<$name> {
 			type Output = $name;
 
 			fn shl(self, shift: T) -> $name {
@@ -1581,13 +1598,17 @@ macro_rules! construct_uint {
 				let bit_shift = shift % 64;
 
 				// shift
-				for i in word_shift..$n_words {
+				let mut i = word_shift;
+				while i < $n_words {
 					ret[i] = original[i - word_shift] << bit_shift;
+					i += 1;
 				}
 				// carry
 				if bit_shift > 0 {
-					for i in word_shift+1..$n_words {
+					let mut i = word_shift+1;
+					while i < $n_words {
 						ret[i] += original[i - 1 - word_shift] >> (64 - bit_shift);
+						i += 1;
 					}
 				}
 				$name(ret)
@@ -1607,7 +1628,7 @@ macro_rules! construct_uint {
 			}
 		}
 
-		impl<T> $crate::core_::ops::Shr<T> for $name where T: Into<$name> {
+		impl<T> const $crate::core_::ops::Shr<T> for $name where T: ~const Into<$name> {
 			type Output = $name;
 
 			fn shr(self, shift: T) -> $name {
@@ -1618,14 +1639,18 @@ macro_rules! construct_uint {
 				let bit_shift = shift % 64;
 
 				// shift
-				for i in word_shift..$n_words {
+				let mut i = word_shift;
+				while i < $n_words {
 					ret[i - word_shift] = original[i] >> bit_shift;
+					i += 1;
 				}
 
 				// Carry
 				if bit_shift > 0 {
-					for i in word_shift+1..$n_words {
+					let mut i = word_shift+1;
+					while i < $n_words {
 						ret[i - word_shift - 1] += original[i] << (64 - bit_shift);
+						i += 1;
 					}
 				}
 

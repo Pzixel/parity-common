@@ -1,3 +1,14 @@
+#![allow(incomplete_features)]
+#![feature(const_trait_impl)]
+#![feature(const_try)]
+#![feature(const_for)]
+#![feature(const_intoiterator_identity)]
+#![feature(const_slice_index)]
+#![feature(const_convert)]
+#![feature(const_mut_refs)]
+#![feature(inline_const_pat)]
+#![feature(adt_const_params)]
+
 // Copyright 2020 Parity Technologies
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -1398,3 +1409,49 @@ pub mod laws {
 	uint_laws!(u512, U512);
 	uint_laws!(u1024, U1024);
 }
+
+macro_rules! assert_const_eq {
+  ($a: expr, $b: expr) => {
+    match $a {
+      const { $b } => (),
+      _ => panic!("assertion failed: `(left == right)`"),
+    }
+  }
+}
+
+macro_rules! assert_const_ne {
+  ($a: expr, $b: expr) => {
+	match $a {
+	  const { $b } => panic!("assertion failed: `(left != right)`"),
+	  _ => (),
+	}
+  }
+}
+
+const _TEST_FROM_U8: U256 = U256::from(10_u8);
+const _TEST_FROM_U16: U256 = U256::from(10_u16);
+const _TEST_FROM_U32: U256 = U256::from(10_u32);
+const _TEST_FROM_U64: U256 = U256::from(10_u64);
+const _TEST_FROM_U128: U256 = U256::from(10_u128);
+const _TEST_FROM_I8: U256 = U256::from(10_i8);
+const _TEST_FROM_I16: U256 = U256::from(10_i16);
+const _TEST_FROM_I32: U256 = U256::from(10_i32);
+const _TEST_FROM_I64: U256 = U256::from(10_i64);
+const _TEST_FROM_I128: U256 = U256::from(10_i128);
+
+const _TEST_EQUALITY: () = assert_const_eq!(U256::from(10), U256::from(10));
+
+const _TEST_ADD: () = assert_const_eq!(U256::from(10) + U256::from(10), U256::from(20));
+const _TEST_SUB: () = assert_const_eq!(U256::from(10) - U256::from(10), U256::from(0));
+const _TEST_MUL: () = assert_const_eq!(U256::from(10) * U256::from(10), U256::from(100));
+// const _TEST_DIV: U256 = U256::from(10) / U256::from(10);
+
+const _TEST_SHL: () = assert_const_eq!(U256::from(10) << 10, U256::from(10240));
+const _TEST_SHR: () = assert_const_eq!(U256::from(10240) >> 10, U256::from(10));
+const _TEST_NOT_CHANGES_VALUE: () = assert_const_ne!(!U256::from(10), U256::from(10));
+const _TEST_NOT_TWICE_KEEPS_VALUE: () = assert_const_eq!(!!U256::from(10), U256::from(10));
+const _TEST_AND: () = assert_const_eq!(U256::from(7) & U256::from(255), U256::from(7));
+const _TEST_OR: () = assert_const_eq!(U256::from(7) | U256::from(255), U256::from(255));
+const _TEST_XOR: () = assert_const_eq!(U256::from(7) ^ U256::from(255), U256::from(248));
+
+

@@ -1,3 +1,10 @@
+#![feature(const_trait_impl)]
+#![feature(const_try)]
+#![feature(const_for)]
+#![feature(const_intoiterator_identity)]
+#![feature(const_slice_index)]
+#![feature(const_convert)]
+#![feature(const_mut_refs)]
 // Copyright 2020 Parity Technologies
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
